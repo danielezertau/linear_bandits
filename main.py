@@ -50,8 +50,22 @@ def should_eliminate_arm(theta_hat, A_l, arm, eps_l):
         return True
     return False
 
+def play_arm_t_l_a(a, pi_l, eps_l, l, delta, A, theta_star):
+    arm_rewards = []
+    k, d = A.shape
+    V_l = np.zeros((d, d))
+    theta_hat = np.zeros((d, 1))
+    arm = np.expand_dims(A[a], axis=1)
+    T_l_a = math.ceil(get_t_l_a(a, pi_l, d, eps_l, k, l, delta))
+    V_l += T_l_a * (arm @ arm.T)
+
+    for _ in range(T_l_a):
+        reward = play_arm(arm, theta_star)
+        arm_rewards.append(reward)
+        theta_hat += arm * reward
+    return V_l, theta_hat, arm_rewards
+
 def phase(A, l, delta, theta_star):
-    k = A.shape[0]
     d = A.shape[1]
     support, pi_l = find_optimal_design(A)
     eps_l = math.pow(2, -l)
@@ -59,13 +73,11 @@ def phase(A, l, delta, theta_star):
     theta_hat = np.zeros((d, 1))
     phase_rewards = []
     for a in support:
-        arm = np.expand_dims(A[a], axis=1)
-        T_l_a = math.ceil(get_t_l_a(a, pi_l, d, eps_l, k, l, delta))
-        V_l += T_l_a * (arm @ arm.T)
-        for _ in range(T_l_a):
-            reward = play_arm(arm, theta_star)
-            phase_rewards.append(reward)
-            theta_hat += arm * reward
+        V_l_a, theta_hat_a, phase_rewards_a = play_arm_t_l_a(a, pi_l, eps_l, l, delta, A, theta_star)
+        phase_rewards += phase_rewards_a
+        V_l += V_l_a
+        theta_hat += theta_hat_a
+
     theta_hat = np.linalg.inv(V_l) @ theta_hat
 
     vec_fn = np.vectorize(
@@ -109,6 +121,7 @@ def main():
     num_steps = 10
     k, d, delta = 1000, 5, 0.00001
     A = sample_in_ball(k, d)
+    
     theta_star = np.random.uniform(0, 1, d)
     a_star = A[np.argmax(A @ theta_star)]
     optimal_reward = theta_star.T @ a_star

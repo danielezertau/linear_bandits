@@ -106,7 +106,7 @@ def phase_elimination_alg(A, delta, theta_star, cov_matrix, num_steps):
         print(f"\n\nRunning phase {l}"
               f"\nNumber of arms: {A_l.shape[0]}"
               f"\nRemaining steps: {remaining_steps}")
-        print(f"Optimal arm not eliminated: {A[np.argmax(A @ theta_star)] in A_l}")
+        print(f"Optimal arm eliminated: {A[np.argmax(A @ theta_star)] not in A_l}")
         A_l, phase_rewards = phase(A_l, l, delta, theta_star, cov_matrix, remaining_steps)
         remaining_steps -= len(phase_rewards)
         total_rewards += phase_rewards

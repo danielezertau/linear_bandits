@@ -27,7 +27,7 @@ def find_optimal_design(X):
 
     # 5) Solve as an SDP
     prob = cp.Problem(obj, constraints)
-    prob.solve(solver=cp.MOSEK, verbose=True)  # SCS, MOSEK, CVXOPT, etc. :contentReference[oaicite:4]{index=4}
+    prob.solve(solver=cp.MOSEK, verbose=False)  # SCS, MOSEK, CVXOPT, etc. :contentReference[oaicite:4]{index=4}
 
     # 6) Extract support of the design
     w_val = w.value

@@ -19,7 +19,10 @@ def find_optimal_design(X):
     w = cp.Variable(k, nonneg=True)
 
     # 3) Form the information matrix M = sum_i w_i x_i x_i^T
-    M = sum(w[i] * np.outer(X[i], X[i]) for i in range(k))
+    lam = 0
+    if k < d:
+        lam = 0.01
+    M = sum(w[i] * np.outer(X[i], X[i]) for i in range(k)) + lam * np.eye(d)
 
     # 4) Set up D-optimal objective and simplex constraint
     obj = cp.Maximize(cp.log_det(M))
@@ -85,17 +88,13 @@ def phase(A, l, delta, theta_star, cov_matrix, remaining_steps):
         V_l += V_l_a
         theta_hat += theta_hat_a
 
-    if k >=d:
-        theta_hat = np.linalg.inv(V_l) @ theta_hat
+    theta_hat = np.linalg.inv(V_l) @ theta_hat
 
-        vec_fn = np.vectorize(
-            lambda A_arm: should_eliminate_arm(theta_hat, A, A_arm, eps_l),
-            otypes=[bool],
-            signature='(d)->()'
-        )
-    else:
-        # Can't update the design in this case, so don't eliminate any arms
-        vec_fn = np.vectorize(lambda x: False, otypes=[bool], signature='(d)->()')
+    vec_fn = np.vectorize(
+        lambda A_arm: should_eliminate_arm(theta_hat, A, A_arm, eps_l),
+        otypes=[bool],
+        signature='(d)->()'
+    )
     return A[~vec_fn(A)], phase_rewards
 
 def phase_elimination_alg(A, delta, theta_star, cov_matrix, num_steps):
@@ -104,6 +103,10 @@ def phase_elimination_alg(A, delta, theta_star, cov_matrix, num_steps):
     total_rewards = []
     remaining_steps = num_steps
     while remaining_steps > 0:
+        print(f"\n\nRunning phase {l}"
+              f"\nNumber of arms: {A_l.shape[0]}"
+              f"\nRemaining steps: {remaining_steps}")
+        print(f"Optimal arm not eliminated: {A[np.argmax(A @ theta_star)] in A_l}")
         A_l, phase_rewards = phase(A_l, l, delta, theta_star, cov_matrix, remaining_steps)
         remaining_steps -= len(phase_rewards)
         total_rewards += phase_rewards

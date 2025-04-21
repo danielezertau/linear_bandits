@@ -14,12 +14,12 @@ def sample_in_ball(k, d):
     return V * R[:, None]
 
 def find_optimal_design(X):
-    m, d = X.shape
+    k, d = X.shape
     # 2) Define weights on the simplex
-    w = cp.Variable(m, nonneg=True)
+    w = cp.Variable(k, nonneg=True)
 
     # 3) Form the information matrix M = sum_i w_i x_i x_i^T
-    M = sum(w[i] * np.outer(X[i], X[i]) for i in range(m))
+    M = sum(w[i] * np.outer(X[i], X[i]) for i in range(k))
 
     # 4) Set up D-optimal objective and simplex constraint
     obj = cp.Maximize(cp.log_det(M))

@@ -19,10 +19,10 @@ def find_optimal_design(X):
     w = cp.Variable(k, nonneg=True)
 
     # 3) Form the information matrix M = sum_i w_i x_i x_i^T
-    lam = 0
     if k < d:
-        lam = 0.01
-    M = sum(w[i] * np.outer(X[i], X[i]) for i in range(k)) + lam * np.eye(d)
+        return np.arange(k), np.ones(k) / k
+
+    M = sum(w[i] * np.outer(X[i], X[i]) for i in range(k))
 
     # 4) Set up D-optimal objective and simplex constraint
     obj = cp.Maximize(cp.log_det(M))

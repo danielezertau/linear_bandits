@@ -66,6 +66,7 @@ def play_arm_t_l_a(arm_index, pi_l, eps_l, l, delta, A, theta_star, cov_matrix, 
     T_l_a = math.ceil(get_t_l_a(arm_index, pi_l, d, eps_l, k, l, delta))
     V_l += T_l_a * (arm @ arm.T)
 
+    print(f"Running arm {arm_index} for {T_l_a} steps")
     for _ in range(min(T_l_a, remaining_steps)):
         reward = play_arm(arm, theta_star, cov_matrix)
         arm_rewards.append(reward)

@@ -38,7 +38,7 @@ def find_optimal_design(X):
     return support, w_val
 
 def get_t_l_a(arm_index, pi, d, eps, k, l, delta):
-    return ((2 * d * pi[arm_index]) / (math.pow(eps, 2))) * math.log(k * l * (l  +1) / delta)
+    return ((2 * d * pi[arm_index]) / (math.pow(eps, 2))) * ((math.log(k * l * (l  +1) / delta)) ** 2)
 
 def sample_theta_s(theta_star, cov_matrix):
     return np.random.multivariate_normal(theta_star, cov_matrix)
@@ -77,7 +77,7 @@ def phase(A, l, delta, theta_star, cov_matrix, remaining_steps):
     k, d = A.shape
     support, pi_l = find_optimal_design(A)
     eps_l = math.pow(2, -l)
-    V_l = np.zeros((d, d))
+    V_l = np.eye(d)
     theta_hat = np.zeros((d, 1))
     phase_rewards = []
     for arm_index in support:
@@ -137,10 +137,14 @@ def main():
     A = sample_in_ball(k, d)
     
     theta_star = np.random.uniform(0, 1, d)
-    a_star = A[np.argmax(A @ theta_star)]
-    optimal_reward = theta_star.T @ a_star
 
     cov_matrix = np.eye(d) * (1 / np.sqrt(d))
+    # map to new ball
+    variances = np.array([arm.T @ cov_matrix @ arm for arm in A])
+    A = A / (np.expand_dims(np.maximum(np.sqrt(variances), np.sqrt(12/18)), axis=1))
+    a_star = A[np.argmax(A @ theta_star)]
+    optimal_reward = theta_star.T @ a_star
+    
     rewards = phase_elimination_alg(A, delta, theta_star, cov_matrix, num_steps)
     
     regret = optimal_reward - np.array(rewards)

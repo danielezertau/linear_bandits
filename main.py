@@ -13,16 +13,17 @@ def sample_in_ball(k, d):
 
     return V * R[:, None]
 
-def find_optimal_design(X):
-    k, d = X.shape
+def find_optimal_design(A, variances):
+    k, d = A.shape
+    
     # 2) Define weights on the simplex
     w = cp.Variable(k, nonneg=True)
 
     # 3) Form the information matrix M = sum_i w_i x_i x_i^T
     if k < d:
-        return np.arange(k), np.ones(k) / k
+        return np.arange(k), (np.ones(k) / k) * variances
 
-    M = sum(w[i] * np.outer(X[i], X[i]) for i in range(k))
+    M = sum(w[i] * np.outer(A[i], A[i]) for i in range(k))
 
     # 4) Set up D-optimal objective and simplex constraint
     obj = cp.Maximize(cp.log_det(M))
@@ -34,11 +35,12 @@ def find_optimal_design(X):
 
     # 6) Extract support of the design
     w_val = w.value
+    w_val = w_val * variances
     support = np.where(w_val > 1e-5)[0]
     return support, w_val
 
-def get_t_l_a(arm_index, pi, d, eps, k, l, delta):
-    return ((2 * d * pi[arm_index]) / (math.pow(eps, 2))) * ((math.log(k * l * (l  +1) / delta)) ** 2)
+def get_t_l_a(pi_arm, d, eps, k, l, delta):
+    return ((2 * d * pi_arm) / (math.pow(eps, 2))) * (math.log(k * l * (l  +1) / delta))
 
 def sample_theta_s(theta_star, cov_matrix):
     return np.random.multivariate_normal(theta_star, cov_matrix)
@@ -57,13 +59,13 @@ def should_eliminate_arm(theta_hat, A_l, arm, eps_l):
         return True
     return False
 
-def play_arm_t_l_a(arm_index, pi_l, eps_l, l, delta, A, theta_star, cov_matrix, remaining_steps):
+def play_arm_t_l_a(arm_index, arm, pi_arm, eps_l, l, delta, A, theta_star, cov_matrix, remaining_steps):
     arm_rewards = []
     k, d = A.shape
     V_l = np.zeros((d, d))
     theta_hat = np.zeros((d, 1))
-    arm = np.expand_dims(A[arm_index], axis=1)
-    T_l_a = math.ceil(get_t_l_a(arm_index, pi_l, d, eps_l, k, l, delta))
+    arm = np.expand_dims(arm, axis=1)
+    T_l_a = math.ceil(get_t_l_a(pi_arm, d, eps_l, k, l, delta))
     V_l += T_l_a * (arm @ arm.T)
 
     print(f"Running arm {arm_index} for {T_l_a} steps")
@@ -73,9 +75,10 @@ def play_arm_t_l_a(arm_index, pi_l, eps_l, l, delta, A, theta_star, cov_matrix, 
         theta_hat += arm * reward
     return V_l, theta_hat, arm_rewards
 
-def phase(A, l, delta, theta_star, cov_matrix, remaining_steps):
+def phase(A, l, delta, theta_star, cov_matrix, variances, remaining_steps):
     k, d = A.shape
-    support, pi_l = find_optimal_design(A)
+
+    support, pi_l = find_optimal_design(A, variances)
     eps_l = math.pow(2, -l)
     V_l = np.eye(d)
     theta_hat = np.zeros((d, 1))
@@ -83,12 +86,15 @@ def phase(A, l, delta, theta_star, cov_matrix, remaining_steps):
     for arm_index in support:
         if remaining_steps <= 0:
             break
-        V_l_a, theta_hat_a, phase_rewards_a = play_arm_t_l_a(arm_index, pi_l, eps_l, l, delta, A, theta_star, cov_matrix, remaining_steps)
+        V_l_a, theta_hat_a, phase_rewards_a = play_arm_t_l_a(arm_index, A[arm_index],
+                                                             pi_l[arm_index], eps_l, l, delta, A, theta_star,
+                                                             cov_matrix, remaining_steps)
         remaining_steps -= len(phase_rewards_a)
         phase_rewards += phase_rewards_a
         V_l += V_l_a
         theta_hat += theta_hat_a
 
+    print("Calculating theta hat")
     theta_hat = np.linalg.inv(V_l) @ theta_hat
 
     vec_fn = np.vectorize(
@@ -96,25 +102,28 @@ def phase(A, l, delta, theta_star, cov_matrix, remaining_steps):
         otypes=[bool],
         signature='(d)->()'
     )
-    return A[~vec_fn(A)], phase_rewards
+    return A[~vec_fn(A)], variances[~vec_fn(A)], phase_rewards
 
-def phase_elimination_alg(A, delta, theta_star, cov_matrix, num_steps):
+def phase_elimination_alg(A, delta, theta_star, cov_matrix, variances, num_steps):
     l = 1
     A_l = A
+    variances_l = variances
     total_rewards = []
     remaining_steps = num_steps
+    phase_lengths = []
     while remaining_steps > 0:
         print(f"\n\nRunning phase {l}"
               f"\nNumber of arms: {A_l.shape[0]}"
               f"\nRemaining steps: {remaining_steps}")
         print(f"Optimal arm eliminated: {A[np.argmax(A @ theta_star)] not in A_l}")
-        A_l, phase_rewards = phase(A_l, l, delta, theta_star, cov_matrix, remaining_steps)
+        A_l, variances_l, phase_rewards = phase(A_l, l, delta, theta_star, cov_matrix, variances_l, remaining_steps)
+        phase_lengths.append(len(phase_rewards))
         remaining_steps -= len(phase_rewards)
         total_rewards += phase_rewards
         l += 1
-    return total_rewards
+    return total_rewards, phase_lengths
 
-def plot_cumulative_sum(data, d, k):
+def plot_cumulative_sum(data, phase_lengths, d, k):
     # Plot sqrt
     n_values = np.arange(1, len(data))
     f_n = np.sqrt(d * n_values * np.log(k))
@@ -127,28 +136,34 @@ def plot_cumulative_sum(data, d, k):
     plt.xlabel('Timestep')
     plt.ylabel('Regret')
     plt.grid(True)
+    
+    # Add horizontal lines for phases
+    cumpos = np.cumsum(phase_lengths)
+    for x0 in cumpos:
+        plt.axvline(x=x0, linestyle='--', linewidth=1, color='tab:orange')
+
     plt.legend()
     plt.show()
 
 
 def main():
-    num_steps = 50000
-    k, d, delta = 1000, 50, 0.00001
+    num_steps = 500000
+    k, d, delta = 1000, 5, 0.00001
+    tau = np.sqrt(0.0005)
     A = sample_in_ball(k, d)
     
     theta_star = np.random.uniform(0, 1, d)
 
     cov_matrix = np.eye(d) * (1 / np.sqrt(d))
-    # map to new ball
-    variances = np.array([arm.T @ cov_matrix @ arm for arm in A])
-    A = A / (np.expand_dims(np.maximum(np.sqrt(variances), np.sqrt(12/18)), axis=1))
+
+    variances = np.maximum(np.array([arm.T @ cov_matrix @ arm for arm in A]), tau)
+    rewards, phase_lengths = phase_elimination_alg(A, delta, theta_star, cov_matrix, variances, num_steps)
+
     a_star = A[np.argmax(A @ theta_star)]
     optimal_reward = theta_star.T @ a_star
     
-    rewards = phase_elimination_alg(A, delta, theta_star, cov_matrix, num_steps)
-    
     regret = optimal_reward - np.array(rewards)
-    plot_cumulative_sum(regret, d, k)
+    plot_cumulative_sum(regret, phase_lengths, d, k)
 
 if __name__ == '__main__':
     main()

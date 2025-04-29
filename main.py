@@ -130,7 +130,7 @@ def plot_cumulative_sum(data, phase_lengths, d, k, time_to_one_arm):
     # Plot sqrt
     n_values = np.arange(1, len(data))
     f_n = np.sqrt(d * n_values * np.log(k))
-    plt.plot(n_values, 12 * f_n, color='green', label='12 * sqrt(dnlog(k))')
+    plt.plot(n_values, 8 * f_n, color='green', label='8 * sqrt(dnlog(k))')
 
     # Plot regret
     regret = np.cumsum(data)

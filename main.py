@@ -189,7 +189,7 @@ def random_cov_unit_ball_dirichlet(n):
     return Sigma
 
 def main():
-    num_steps = 500000
+    num_steps = 50000
     k, d, delta = 1000, 5, 0.00001
     A = sample_in_ball(k, d)
     

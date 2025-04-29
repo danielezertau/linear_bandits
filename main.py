@@ -140,7 +140,7 @@ def plot_cumulative_sum(data, phase_lengths, d, k, time_to_one_arm):
     plt.ylabel('Regret')
     plt.grid(True)
     
-    # Add horizontal lines for phases
+    # Add vertical lines for phases
     cumpos = np.cumsum(phase_lengths)
     for x0 in cumpos:
         plt.axvline(x=x0, linestyle='--', linewidth=1, color='tab:orange')

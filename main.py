@@ -105,6 +105,7 @@ def phase(A, l, delta, theta_star, cov_matrix, variances, remaining_steps):
     return A[~vec_fn(A)], variances[~vec_fn(A)], phase_rewards
 
 def phase_elimination_alg(A, delta, theta_star, cov_matrix, variances, num_steps):
+    time_to_one_arm = 0
     l = 1
     A_l = A
     variances_l = variances
@@ -119,11 +120,13 @@ def phase_elimination_alg(A, delta, theta_star, cov_matrix, variances, num_steps
         A_l, variances_l, phase_rewards = phase(A_l, l, delta, theta_star, cov_matrix, variances_l, remaining_steps)
         phase_lengths.append(len(phase_rewards))
         remaining_steps -= len(phase_rewards)
+        if A_l.shape[0] == 1 and time_to_one_arm == 0:
+            time_to_one_arm = num_steps - remaining_steps
         total_rewards += phase_rewards
         l += 1
-    return total_rewards, phase_lengths
+    return total_rewards, phase_lengths, time_to_one_arm
 
-def plot_cumulative_sum(data, phase_lengths, d, k):
+def plot_cumulative_sum(data, phase_lengths, d, k, time_to_one_arm):
     # Plot sqrt
     n_values = np.arange(1, len(data))
     f_n = np.sqrt(d * n_values * np.log(k))
@@ -141,6 +144,22 @@ def plot_cumulative_sum(data, phase_lengths, d, k):
     cumpos = np.cumsum(phase_lengths)
     for x0 in cumpos:
         plt.axvline(x=x0, linestyle='--', linewidth=1, color='tab:orange')
+
+    # Add vertical line for time to one arm
+    if time_to_one_arm > 0:
+        plt.axvline(x=time_to_one_arm, linestyle='--', linewidth=1, color='green')
+        plt.gca().text(
+            time_to_one_arm,           # x in data coordinates
+            0.95,                       # y in axes-fraction (0 at bottom, 1 at top)
+            'one-arm time',            # your annotation text
+            color='green',
+            ha='right',                 # horizontal alignment
+            va='top',                   # vertical alignment
+            rotation=90,
+            transform=plt.gca().get_xaxis_transform()  # blend data x with axes y :contentReference[oaicite:1]{index=1}
+        )
+
+
 
     plt.legend()
     plt.show()
@@ -163,7 +182,7 @@ def main():
     optimal_reward = theta_star.T @ a_star
     
     regret = optimal_reward - np.array(rewards)
-    plot_cumulative_sum(regret, phase_lengths, d, k)
+    plot_cumulative_sum(regret, phase_lengths, d, k, time_to_one_arm)
 
 if __name__ == '__main__':
     main()

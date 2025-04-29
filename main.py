@@ -164,6 +164,29 @@ def plot_cumulative_sum(data, phase_lengths, d, k, time_to_one_arm):
     plt.legend()
     plt.show()
 
+def random_cov_unit_ball_dirichlet(n):
+    """
+    Generate an n×n PSD covariance matrix Σ with trace ≤ 1
+    via Dirichlet + Uniform scaling of eigenvalues and
+    random orthogonal eigenvectors.
+    """
+    # 1) Sample v ~ Dirichlet(1,...,1) so sum(v)=1
+    v = np.random.dirichlet(alpha=np.ones(n))            # :contentReference[oaicite:4]{index=4}
+
+    # 2) Draw u ~ Uniform(0,1) to scale the trace
+    u = np.random.uniform(0.0, 1.0)                      # :contentReference[oaicite:5]{index=5}
+
+    # 3) Compute eigenvalues λ_i = u * v_i (sum ≤ 1)
+    lambdas = u * v
+
+    # 4) Generate random orthogonal matrix Q via QR of Gaussian matrix
+    A = np.random.randn(n, n)
+    Q, _ = np.linalg.qr(A)                               # :contentReference[oaicite:6]{index=6}
+
+    # 5) Assemble Σ = Q diag(lambdas) Q^T
+    Sigma = Q @ np.diag(lambdas) @ Q.T
+
+    return Sigma
 
 def main():
     num_steps = 500000
@@ -173,7 +196,7 @@ def main():
     
     theta_star = np.random.uniform(0, 1, d)
 
-    cov_matrix = np.eye(d) * (1 / np.sqrt(d))
+    cov_matrix = random_cov_unit_ball_dirichlet(d)
 
     variances = np.maximum(np.array([arm.T @ cov_matrix @ arm for arm in A]), tau)
     rewards, phase_lengths = phase_elimination_alg(A, delta, theta_star, cov_matrix, variances, num_steps)

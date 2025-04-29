@@ -191,15 +191,14 @@ def random_cov_unit_ball_dirichlet(n):
 def main():
     num_steps = 500000
     k, d, delta = 1000, 5, 0.00001
-    tau = np.sqrt(0.0005)
     A = sample_in_ball(k, d)
     
     theta_star = np.random.uniform(0, 1, d)
 
     cov_matrix = random_cov_unit_ball_dirichlet(d)
 
-    variances = np.maximum(np.array([arm.T @ cov_matrix @ arm for arm in A]), tau)
-    rewards, phase_lengths = phase_elimination_alg(A, delta, theta_star, cov_matrix, variances, num_steps)
+    variances = np.array([arm.T @ cov_matrix @ arm for arm in A])
+    rewards, phase_lengths, time_to_one_arm = phase_elimination_alg(A, delta, theta_star, cov_matrix, variances, num_steps)
 
     a_star = A[np.argmax(A @ theta_star)]
     optimal_reward = theta_star.T @ a_star

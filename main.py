@@ -35,8 +35,8 @@ def find_optimal_design(A, variances):
 
     # 6) Extract support of the design
     w_val = w.value
-    w_val = w_val * variances
     support = np.where(w_val > 1e-5)[0]
+    w_val[support] = w_val[support] * variances[support]
     return support, w_val
 
 def get_t_l_a(pi_arm, d, eps, k, l, delta):

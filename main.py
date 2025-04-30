@@ -23,7 +23,7 @@ def find_optimal_design(A, variances):
     if k < d:
         return np.arange(k), (np.ones(k) / k) * variances
 
-    M = sum(w[i] * np.outer(A[i], A[i]) for i in range(k))
+    M = sum(w[i] * np.outer(A[i] * variances[i], A[i]) for i in range(k))
 
     # 4) Set up D-optimal objective and simplex constraint
     obj = cp.Maximize(cp.log_det(M))

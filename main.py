@@ -36,11 +36,10 @@ def find_optimal_design(A, variances):
     # 6) Extract support of the design
     w_val = w.value
     support = np.where(w_val > 1e-5)[0]
-    w_val[support] = w_val[support] * variances[support]
     return support, w_val
 
-def get_t_l_a(pi_arm, d, eps, k, l, delta):
-    return ((2 * d * pi_arm) / (math.pow(eps, 2))) * (math.log(k * l * (l  +1) / delta))
+def get_t_l_a(pi_arm, d, eps, k, l, delta, arm_variance):
+    return ((2 * d * pi_arm) / (math.pow(eps, 2))) * (math.log(k * l * (l  +1) / delta)) * arm_variance
 
 def sample_theta_s(theta_star, cov_matrix):
     return np.random.multivariate_normal(theta_star, cov_matrix)
@@ -59,13 +58,13 @@ def should_eliminate_arm(theta_hat, A_l, arm, eps_l):
         return True
     return False
 
-def play_arm_t_l_a(arm_index, arm, pi_arm, eps_l, l, delta, A, theta_star, cov_matrix, remaining_steps):
+def play_arm_t_l_a(arm_index, arm, pi_arm, eps_l, l, delta, A, theta_star, cov_matrix, remaining_steps, arm_variance):
     arm_rewards = []
     k, d = A.shape
     V_l = np.zeros((d, d))
     theta_hat = np.zeros((d, 1))
     arm = np.expand_dims(arm, axis=1)
-    T_l_a = math.ceil(get_t_l_a(pi_arm, d, eps_l, k, l, delta))
+    T_l_a = math.ceil(get_t_l_a(pi_arm, d, eps_l, k, l, delta, arm_variance))
     V_l += T_l_a * (arm @ arm.T)
 
     print(f"Running arm {arm_index} for {T_l_a} steps")
@@ -88,7 +87,7 @@ def phase(A, l, delta, theta_star, cov_matrix, variances, remaining_steps):
             break
         V_l_a, theta_hat_a, phase_rewards_a = play_arm_t_l_a(arm_index, A[arm_index],
                                                              pi_l[arm_index], eps_l, l, delta, A, theta_star,
-                                                             cov_matrix, remaining_steps)
+                                                             cov_matrix, remaining_steps, variances[arm_index])
         remaining_steps -= len(phase_rewards_a)
         phase_rewards += phase_rewards_a
         V_l += V_l_a

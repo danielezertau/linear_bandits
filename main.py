@@ -85,7 +85,7 @@ class PhasedElimination:
     
     def phase(self):
         phase_start_remaining_steps = self.remaining_steps
-        support, self.pi_l = find_optimal_design(self.A_l)
+        support, self.pi_l = frank_wolfe(self.A_l)
         V_l = np.zeros((self.d, self.d))
         self.theta_hat = np.zeros((self.d, 1))
         for arm_index in support:
@@ -140,8 +140,8 @@ class PhasedElimination:
         return self.pseudo_regret, phase_lengths, time_to_one_arm, time_to_ucb
 
 def main():
-    num_steps = 2000000
-    k, d, delta = 1000, 60, 0.00001
+    num_steps = 5000000
+    k, d, delta = 3000, 100, 0.00001
     A = sample_matrix_in_unit_ball(k, d)
     
     theta_star = uniform_vector_unit_ball(d)
@@ -153,9 +153,11 @@ def main():
 
     # Plot regret
     worst_case = np.array([np.max(A @ theta_star) - np.min(A @ theta_star)] * num_steps)
+    mean_case = np.array([np.max(A @ theta_star) - np.mean(A @ theta_star).item()] * num_steps)
+    
     num_phases = len(phase_lengths)
     delta_m = delta / (k * num_phases * (num_phases + 1))
-    plot_regret(regret, worst_case, phase_lengths, d, delta_m, cov_matrix, time_to_one_arm, time_to_ucb)
+    plot_regret(regret, worst_case, mean_case, phase_lengths, d, delta_m, cov_matrix, time_to_one_arm, time_to_ucb)
 
 if __name__ == '__main__':
     main()

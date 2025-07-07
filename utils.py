@@ -1,6 +1,7 @@
 import math
 import matplotlib.pyplot as plt
 import cvxpy as cp
+import tqdm
 import numpy as np
 
 def uniform_vector_unit_sphere(d):
@@ -27,12 +28,41 @@ def get_max_V_inv_norm(A, V_inv):
 
     return idx, scores[idx]
 
+def compute_mvee(P, tol=1e-5, max_iter=1000):
+    N, d = P.shape
+    Q = np.vstack([P.T, np.ones((1, N))])
+    u = np.ones(N) / N
+
+    for _ in range(max_iter):
+        X = Q @ np.diag(u) @ Q.T
+        M = np.einsum('ij,jk,ki->i', Q.T, np.linalg.inv(X), Q)
+        j = np.argmax(M)
+        step = (M[j] - d - 1) / ((d + 1) * (M[j] - 1))
+        new_u = (1 - step) * u
+        new_u[j] += step
+
+        if np.linalg.norm(new_u - u) < tol:
+            u = new_u
+            break
+        u = new_u
+
+    return u
+
+def initialize_core_set(A, tol=1e-5, weight_threshold=1e-3):
+    u = compute_mvee(A, tol=tol)
+    S = np.where(u > weight_threshold)[0]
+    pi0 = np.zeros(len(u))
+    pi0[S] = 1.0 / len(S)
+    return pi0
+
 def frank_wolfe(A):
     print("Finding approximate optimal design")
     k, d = A.shape
-    pi = np.ones(k) / k
+    print("Initializing core set")
+    pi = initialize_core_set(A)
 
-    for _ in range(10 * math.ceil(d * math.log2(math.log2(k)) + d)):
+    print("Running Frank-Wolfe")
+    for _ in tqdm.trange(math.ceil(5 * d * math.log2(d))):
         V_pi = sum(pi[i] * np.outer(A[i] , A[i]) for i in range(k))
         a_max, a_max_norm = get_max_V_inv_norm(A, np.linalg.inv(V_pi))
         gamma = ((1/d) * a_max_norm - 1) / (a_max_norm - 1)
@@ -83,16 +113,19 @@ def vertical_line_with_text(x, color, text):
         transform=plt.gca().get_xaxis_transform()
     )
 
-
-def plot_regret(pseudo_regret, worst_case, phase_lengths, d, delta, cov_matrix, time_to_one_arm, time_to_ucb):
+def plot_regret(pseudo_regret, worst_case, mean_case, phase_lengths, d, delta, cov_matrix, time_to_one_arm, time_to_ucb):
     # Plot sqrt
     T_values = np.arange(1, len(pseudo_regret))
-    f_n = 2 * math.sqrt(2) * np.sqrt(d * T_values * math.log2(1/delta) * np.linalg.trace(cov_matrix) * np.log2(T_values))
+    f_n = 8 * np.sqrt(d * T_values * math.log2(1/delta) * np.linalg.trace(cov_matrix) * np.log2(T_values))
     plt.plot(f_n, color='green', label='Regret Bound')
 
     # Plot worst case
     worst_case_regret = np.cumsum(worst_case)
     plt.plot(worst_case_regret, color='red', label='Worst Case Regret')
+
+    # Plot mean case
+    mean_case_regret = np.cumsum(mean_case)
+    plt.plot(mean_case_regret, color='brown', label='Average Case Regret')
 
     # Plot regret
     regret = np.cumsum(pseudo_regret)
@@ -116,5 +149,5 @@ def plot_regret(pseudo_regret, worst_case, phase_lengths, d, delta, cov_matrix, 
     if time_to_ucb > 0:
         vertical_line_with_text(time_to_ucb, color='orange', text="UCB")
 
-    plt.legend()
+    plt.legend(loc="upper left")
     plt.show()

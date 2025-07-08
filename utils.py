@@ -19,10 +19,10 @@ def uniform_vector_unit_ball(d):
 def sample_matrix_in_unit_ball(k, d):
     return np.array([uniform_vector_unit_ball(d) for _ in range(k)])
 
-def get_max_V_inv_norm(A, V_inv):
-    AV_inv = A @ V_inv
+def get_max_v_mat_inv_norm(actions, v_mat_inv):
+    actions_v_inv = actions @ v_mat_inv
 
-    scores = np.sum(AV_inv * A, axis=1)
+    scores = np.sum(actions_v_inv * actions, axis=1)
 
     idx = np.argmax(scores)
 
@@ -48,43 +48,46 @@ def compute_mvee(P, tol=1e-5, max_iter=1000):
 
     return u
 
-def initialize_core_set(A, tol=1e-5, weight_threshold=1e-3):
-    u = compute_mvee(A, tol=tol)
-    S = np.where(u > weight_threshold)[0]
+def one_hot_vector(coord_idx, dim):
+    vec = np.zeros(dim)
+    vec[coord_idx] = 1
+    return vec
+
+def initialize_core_set(actions, tol=1e-5, weight_threshold=1e-3):
+    u = compute_mvee(actions, tol=tol)
+    support = np.where(u > weight_threshold)[0]
     pi0 = np.zeros(len(u))
-    pi0[S] = 1.0 / len(S)
+    pi0[support] = 1.0 / len(support)
     return pi0
 
-def frank_wolfe(A):
+def frank_wolfe(actions):
     print("Finding approximate optimal design")
-    k, d = A.shape
+    k, d = actions.shape
     print("Initializing core set")
-    pi = initialize_core_set(A)
+    pi = initialize_core_set(actions)
 
     print("Running Frank-Wolfe")
     for _ in tqdm.trange(math.ceil(5 * d * math.log2(d))):
-        V_pi = sum(pi[i] * np.outer(A[i] , A[i]) for i in range(k))
-        a_max, a_max_norm = get_max_V_inv_norm(A, np.linalg.inv(V_pi))
+        v_pi_mat = sum(pi[i] * np.outer(actions[i], actions[i]) for i in range(k))
+        a_max, a_max_norm = get_max_v_mat_inv_norm(actions, np.linalg.inv(v_pi_mat))
         gamma = ((1/d) * a_max_norm - 1) / (a_max_norm - 1)
 
-        a_max_one_hot = np.zeros(k)
-        a_max_one_hot[a_max] = 1
-
+        a_max_one_hot = one_hot_vector(a_max, k)
         pi = (1 - gamma) * pi + gamma * a_max_one_hot
 
     support = np.where(pi > 1e-4)[0]
     print(f"Support size is {len(support)}")
     return support, pi
 
-def find_optimal_design(A):
+def find_optimal_design(actions):
     print("Finding optimal design")
-    k, d = A.shape
+    k, d = actions.shape
 
     # 2) Define weights on the simplex
     w = cp.Variable(k, nonneg=True)
 
     # 3) Form the information matrix M = sum_i w_i x_i x_i^T
-    M = sum(w[i] * np.outer(A[i] , A[i]) for i in range(k))
+    M = sum(w[i] * np.outer(actions[i], actions[i]) for i in range(k))
 
     # 4) Set up D-optimal objective and simplex constraint
     obj = cp.Maximize(cp.log_det(M))
@@ -115,8 +118,9 @@ def vertical_line_with_text(x, color, text):
 
 def plot_regret(pseudo_regret, worst_case, mean_case, phase_lengths, d, delta, cov_matrix, time_to_one_arm, time_to_ucb):
     # Plot sqrt
-    T_values = np.arange(1, len(pseudo_regret))
-    f_n = 8 * np.sqrt(d * T_values * math.log2(1/delta) * np.linalg.trace(cov_matrix) * np.log2(T_values))
+    t_values = np.arange(1, len(pseudo_regret))
+    f_n = (d * math.log2(1/delta) + 
+           8 * np.sqrt(d * t_values * math.log2(1/delta) * np.linalg.trace(cov_matrix) * np.log2(t_values)))
     plt.plot(f_n, color='green', label='Regret Bound')
 
     # Plot worst case
